@@ -139,6 +139,7 @@ function makeShell() {
       </a>
       <nav class="ops-nav">${sections.map(([id, title, icon]) => `<a href="#${id}" data-section="${id}">
         ${symbol(icon)}<span>${title}</span>${id === 'reports' ? '<span class="ops-nav-count" data-pending hidden>0</span>' : ''}
+        ${id === 'players' ? '<span class="ops-nav-count" data-waiting hidden>0</span>' : ''}
       </a>`).join('')}</nav>
       <div class="ops-sidebar-foot">
         <a href="/screen" target="_blank" rel="noopener">${symbol('screen')}<span>Open projector</span></a>
@@ -166,6 +167,11 @@ function updateShell() {
 
   pending.textContent = state.pendingCount
   pending.hidden = state.pendingCount === 0
+  const waiting = app.querySelector('[data-waiting]')
+  const waitingCount = waitingPlayers(state.data).length
+  waiting.textContent = waitingCount
+  waiting.hidden = waitingCount === 0
+  waiting.setAttribute('aria-label', `${waitingCount} waiting for a mission`)
   app.querySelector('[data-phase]').innerHTML = badge(state.data.round.phase, phaseName[state.data.round.phase])
   app.querySelector('[data-network]').hidden = !state.offline
 
@@ -191,6 +197,37 @@ function auditRows(items) {
     <time datetime="${esc(new Date(item.createdAt).toISOString())}">${date(item.createdAt, true)}</time></li>`).join('')}</ul>`
 }
 
+function waitingPlayers(data) {
+  if (!['live', 'paused'].includes(data?.round.phase)) return []
+  return data.players.filter(player => player.status === 'alive' && !player.mission)
+}
+
+function availableMissions(data) {
+  return data.missions.filter(mission => mission.active && (!data.round.uniqueMissions || !mission.assigned))
+}
+
+function canAssignMissions(data) {
+  return data.round.phase !== 'ended' && availableMissions(data).length > 0 &&
+    data.players.some(player => player.status === 'alive' && !player.mission)
+}
+
+function waitingPanel(data) {
+  const waiting = waitingPlayers(data)
+  if (!waiting.length) return ''
+  const active = data.missions.some(mission => mission.active)
+  const available = availableMissions(data).length > 0
+  return `<section class="ops-panel ops-waiting">
+    ${panelHeader(`${waiting.length} ${waiting.length === 1 ? 'agent' : 'agents'} waiting for a mission`,
+      available ? 'Assign an available mission or write one for them.' : 'Create a mission or reuse one from the catalog.')}
+    <ul class="ops-waiting-list">${waiting.map(player => `<li>
+      <strong>${esc(player.name)}</strong>
+      <div class="ops-actions">
+        ${button('Create and assign', 'mission-for-player', { id: player.id, icon: 'plus', kind: 'primary' })}
+        ${button(available ? 'Assign random mission' : 'Reuse a random mission', 'waiting-random', { id: player.id, icon: 'folder', disabled: !active })}
+      </div></li>`).join('')}</ul>
+  </section>`
+}
+
 function overview(data) {
   const { alive, completed, approved, rejected, eliminated } = count(data)
   const { phase } = data.round
@@ -207,6 +244,7 @@ function overview(data) {
       </div>
       <img src="/art/agent.svg" alt="" class="ops-hero-art">
     </section>
+    ${waitingPanel(data)}
     <div class="ops-stat-grid">
       ${stat('Registered players', data.players.length, 'people')}
       ${stat('Alive', alive, 'heart', 'green')}
@@ -260,8 +298,8 @@ function playerRows() {
 }
 
 function players(data) {
-  const canAssign = data.round.phase !== 'ended' && data.missions.some(mission => mission.active) && data.players.some(player => !player.mission)
-  return `${pageHeader('Players', 'Manage registered agents, lives and assignments.', button('Assign unassigned players', 'assign-all', { icon: 'folder', disabled: !canAssign }))}
+  return `${pageHeader('Players', 'Manage registered agents, lives and assignments.', button('Assign unassigned players', 'assign-all', { icon: 'folder', disabled: !canAssignMissions(data) }))}
+    <div data-waiting-panel>${waitingPanel(data)}</div>
     <section class="ops-panel">
       <div class="ops-filters">
         <label class="ops-search">${symbol('search')}<span class="sr-only">Search players</span>
@@ -281,6 +319,16 @@ function players(data) {
 
 function missions(data) {
   return `${pageHeader('Mission catalog', 'Manage the pool of assignments across rounds.', button('Add mission', 'mission-new', { icon: 'plus', kind: 'primary' }))}
+    <section class="ops-panel">
+      ${panelHeader('Mission assignment')}
+      <form class="ops-form ops-mission-policy" data-form="mission-policy" data-preserve>
+        <label class="ops-toggle"><input type="checkbox" name="uniqueMissions" ${data.round.uniqueMissions ? 'checked' : ''}>
+          <span><b>Require unique missions</b><small>Assign each catalog mission once per round. Staff can choose to reuse one for a waiting player.</small></span></label>
+        <p class="ops-form-error" role="alert"></p>
+        <button type="submit" class="button secondary">Save mission settings</button>
+      </form>
+    </section>
+    ${waitingPanel(data)}
     <section class="ops-panel">
       ${panelHeader('Saved missions', `${data.missions.filter(mission => mission.active).length} active · ${data.missions.length} total`)}
       ${data.missions.length ? `<div class="ops-table-wrap"><table class="ops-table">
@@ -482,7 +530,9 @@ function renderSection({ force = false, focus = false } = {}) {
     if (state.current === 'players') {
       const rows = view.querySelector('[data-player-rows]')
       const assign = view.querySelector('[data-action="assign-all"]')
-      if (assign) assign.disabled = !(state.data.round.phase !== 'ended' && state.data.missions.some(mission => mission.active) && state.data.players.some(player => !player.mission))
+      if (assign) assign.disabled = !canAssignMissions(state.data)
+      const waiting = view.querySelector('[data-waiting-panel]')
+      if (waiting) waiting.innerHTML = waitingPanel(state.data)
       if (rows) {
         const focusedId = rows.contains(document.activeElement) ? document.activeElement.dataset.id : null
         rows.innerHTML = playerRows()
@@ -512,6 +562,7 @@ function showData(data) {
   if (state.data && typeof data.revision === 'number' && data.revision < state.data.revision) return
 
   const previous = state.pendingCount
+  const previousWaiting = new Set(waitingPlayers(state.data).map(player => player.id))
   const initial = state.auth !== 'staff'
   const changed = initial || typeof data.revision !== 'number' || data.revision !== state.data?.revision
   state.data = data
@@ -520,6 +571,8 @@ function showData(data) {
   state.pendingCount = data.reports.filter(report => report.status === 'pending').length
   if (initial) makeShell()
   if (!initial && state.pendingCount > previous) toast(`${state.pendingCount - previous} new ${state.pendingCount - previous === 1 ? 'report' : 'reports'} to review.`)
+  const newWaiting = waitingPlayers(data).filter(player => !previousWaiting.has(player.id))
+  if (!initial && newWaiting.length) toast(newWaiting.length === 1 ? `${newWaiting[0].name} is waiting for a mission.` : `${newWaiting.length} agents are waiting for missions.`)
   updateShell()
   if (changed) renderSection()
 }
@@ -560,23 +613,23 @@ function dialog(title, contents) {
   if (!el.open) el.showModal()
 }
 
-function createMission(mission) {
-  dialog(mission ? 'Edit mission' : 'Add mission', `
-    <form data-form="mission" class="ops-form" data-id="${esc(mission?.id || '')}">
+function createMission(mission, player) {
+  dialog(player ? `New mission for ${player.name}` : mission ? 'Edit mission' : 'Add mission', `
+    <form data-form="mission" class="ops-form" data-id="${esc(mission?.id || '')}" data-player-id="${esc(player?.id || '')}">
       ${mission?.assigned ? `<p class="ops-notice">${mission.assigned} ${mission.assigned === 1 ? 'player has' : 'players have'} this mission. They’ll keep the version they received. Future assignments use the updated version.</p>` : ''}
       <label class="field ops-field"><span>Title</span><input name="title" minlength="2" maxlength="80" required value="${esc(mission?.title || '')}" placeholder="Christmas Carol Challenge"></label>
       <label class="field ops-field"><span>Description</span>
         <textarea name="description" minlength="5" maxlength="300" rows="3" required placeholder="Convince someone to sing a Christmas carol.">${esc(mission?.description || '')}</textarea></label>
-      <label class="field ops-field"><span>Required completions</span><input name="target" type="number" min="1" max="50" value="${mission?.target || 3}" required></label>
-      <label class="ops-toggle"><input name="active" type="checkbox" ${mission?.active !== false ? 'checked' : ''}><span><b>Available for random assignment</b></span></label>
+      <label class="field ops-field"><span>Required completions</span><input name="target" type="number" min="1" max="50" value="${mission?.target || (player ? 1 : 3)}" required></label>
+      ${player ? '' : `<label class="ops-toggle"><input name="active" type="checkbox" ${mission?.active !== false ? 'checked' : ''}><span><b>Available for random assignment</b></span></label>`}
       <p class="ops-form-error" role="alert"></p>
-      <button type="submit" class="button primary">${symbol('check')}Save mission catalog</button>
+      <button type="submit" class="button primary">${symbol('check')}${player ? 'Create and assign' : 'Save mission catalog'}</button>
     </form>`)
 }
 
 function playerDialog(player) {
   const history = state.data.reports.filter(report => report.reporterId === player.id || report.targetId === player.id)
-  const choices = state.data.missions.filter(mission => mission.active)
+  const choices = availableMissions(state.data)
   dialog(player.name, `
     <div class="ops-player-line">${badge(player.status)}<span>${esc(player.mission?.title || 'Unassigned')}</span></div>
     ${state.data.round.phase === 'ended' ? '' : `<div class="ops-player-quick ops-actions">
@@ -696,6 +749,18 @@ const clickHandlers = {
   },
   'dialog-close'() { app.querySelector('#ops-dialog')?.close() },
   'mission-new'() { createMission() },
+  'mission-for-player'(id) {
+    const player = waitingPlayers(state.data).find(item => item.id === id)
+    if (player) createMission(null, player)
+  },
+  async 'waiting-random'(id) {
+    const { data } = state
+    const player = waitingPlayers(data).find(item => item.id === id)
+    if (!player) return
+    const allowReuse = !availableMissions(data).length
+    if (allowReuse && !await confirmed('Reuse an assigned mission?', `${player.name} will share a mission with another player.`, 'Reuse mission')) return
+    await action('playerAssignWaiting', { id, allowReuse, roundId: data.round.id }, 'Mission assigned.')
+  },
   'mission-open'(id) {
     const found = state.data.missions.find(item => item.id === id)
     if (found) createMission(found)
@@ -719,7 +784,7 @@ const clickHandlers = {
     }
   },
   async 'assign-all'() {
-    if (await confirmed('Assign unassigned players?', 'Each unassigned player will receive a random active mission.', 'Assign missions')) {
+    if (await confirmed('Assign unassigned players?', state.data.round.uniqueMissions ? 'Players will receive unused missions while supplies last.' : 'Each unassigned player will receive a random active mission.', 'Assign missions')) {
       await action('assignAll', {}, 'Unassigned players updated.')
     }
   },
@@ -787,17 +852,22 @@ async function login(form, fields) {
 const formHandlers = {
   login,
   async mission(form, fields) {
-    const saved = await action('missionSave', {
+    const playerId = form.dataset.playerId || undefined
+    const saved = await action(playerId ? 'missionAssignNew' : 'missionSave', {
       id: form.dataset.id || undefined,
+      playerId,
       title: fields.title,
       description: fields.description,
       target: Number(fields.target),
       active: fields.active === 'on',
-    }, 'Mission catalog saved.', form)
+    }, playerId ? 'New mission assigned.' : 'Mission catalog saved.', form)
     if (saved) {
       app.querySelector('#ops-dialog')?.close()
       renderSection({ force: true })
     }
+  },
+  'mission-policy'(form, fields) {
+    return action('missionPolicy', { uniqueMissions: fields.uniqueMissions === 'on' }, 'Mission settings saved.', form)
   },
   async player(form, fields) {
     const patch = { id: form.dataset.id }

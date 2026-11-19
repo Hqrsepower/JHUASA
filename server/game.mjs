@@ -57,6 +57,7 @@ function newRound(settings, now) {
   return {
     id: id(), phase: 'lobby', createdAt: date(now), startedAt: null, endedAt: null,
     lateJoin: settings?.lateJoin ?? true, delay: settings?.delay ?? 5, duration: settings?.duration ?? 8,
+    uniqueMissions: settings?.uniqueMissions ?? false,
     states: {}, guessCatalog: {}, reports: [], events: [], results: null, finaleEnabled: false,
   };
 }
@@ -298,17 +299,23 @@ function missionOptions(state) {
   if (state.round.guessCatalog) return new Map(Object.entries(state.round.guessCatalog));
   return new Map(Object.values(state.missions).map(missionSnapshot).map(mission => [mission.id, mission]));
 }
-function randomMission(state, previousId, excludePlayerId) {
-  let candidates = assignable(state);
-  if (!candidates.length) return null;
-  if (candidates.length > 1 && previousId) candidates = candidates.filter(mission => mission.id !== previousId);
-  const counts = new Map(candidates.map(mission => [mission.id, 0]));
+function missionAssignmentCounts(state, excludePlayerId) {
+  const counts = new Map();
   for (const [playerId, entry] of Object.entries(state.round.states)) {
     const missionId = catalogId(entry.mission);
-    if (playerId !== excludePlayerId && !state.players[playerId]?.removedAt && counts.has(missionId)) counts.set(missionId, counts.get(missionId) + 1);
+    if (missionId && playerId !== excludePlayerId && state.players[playerId] && !state.players[playerId].removedAt) {
+      counts.set(missionId, (counts.get(missionId) ?? 0) + 1);
+    }
   }
-  const fewest = Math.min(...counts.values());
-  const balanced = candidates.filter(mission => counts.get(mission.id) === fewest);
+  return counts;
+}
+function randomMission(state, previousId, excludePlayerId, allowReuse = !state.round.uniqueMissions) {
+  const counts = missionAssignmentCounts(state, excludePlayerId);
+  let candidates = assignable(state).filter(mission => allowReuse || !counts.has(mission.id));
+  if (!candidates.length) return null;
+  if (candidates.length > 1 && previousId) candidates = candidates.filter(mission => mission.id !== previousId);
+  const fewest = Math.min(...candidates.map(mission => counts.get(mission.id) ?? 0));
+  const balanced = candidates.filter(mission => (counts.get(mission.id) ?? 0) === fewest);
   return balanced[randomIndex(balanced.length)];
 }
 function setMission(entry, mission) {
@@ -317,7 +324,10 @@ function setMission(entry, mission) {
   entry.completedAt = null;
 }
 function assignUnassigned(state) {
-  const waiting = activePlayers(state).filter(player => !playerRound(state, player.id).mission);
+  const waiting = activePlayers(state).filter(player => {
+    const entry = playerRound(state, player.id);
+    return entry.lives > 0 && !entry.mission;
+  });
   let assigned = 0;
   while (waiting.length) {
     const [player] = waiting.splice(randomIndex(waiting.length), 1);
@@ -413,8 +423,8 @@ function publicResults(results) {
   return projection;
 }
 
-function staffRound({ id: roundId, phase, lateJoin, delay, duration, createdAt, startedAt, endedAt }) {
-  return { id: roundId, phase, lateJoin, delay, duration, createdAt, startedAt, endedAt };
+function staffRound({ id: roundId, phase, lateJoin, uniqueMissions = false, delay, duration, createdAt, startedAt, endedAt }) {
+  return { id: roundId, phase, lateJoin, uniqueMissions, delay, duration, createdAt, startedAt, endedAt };
 }
 function playerView(player, playerState) {
   return {
@@ -641,6 +651,14 @@ function saveMission(state, input, now) {
   return { detail: materialChange && assigned.length ? `${mission.title} · existing assignments kept` : mission.title, missionId: mission.id };
 }
 
+function waitingAgent(state, playerId) {
+  if (!['live', 'paused'].includes(state.round.phase)) fail(409, 'Start the game before using the waiting list.');
+  const player = getPlayer(state, playerId);
+  const entry = playerRound(state, player.id);
+  if (entry.mission || entry.lives === 0) fail(409, 'This player is no longer waiting for a mission.');
+  return { player, entry };
+}
+
 function editPlayer(state, input, now, credential) {
   const player = getPlayer(state, input.id);
   const entry = playerRound(state, player.id);
@@ -769,6 +787,22 @@ function applyStaffAction(state, input, now, env, prepared, reviewer) {
   switch (input.action) {
     case 'missionSave':
       return saveMission(state, input, now);
+    case 'missionAssignNew': {
+      const { player, entry } = waitingAgent(state, input.playerId);
+      const { missionId } = saveMission(state, { title: input.title, description: input.description, target: input.target, active: true }, now);
+      const mission = state.missions[missionId];
+      setMission(entry, mission);
+      return { detail: `${player.name} · ${mission.title}`, missionId };
+    }
+    case 'missionPolicy': {
+      const uniqueMissions = boolean(input.uniqueMissions, 'unique missions');
+      if (uniqueMissions === Boolean(round.uniqueMissions)) return null;
+      if (uniqueMissions && round.phase !== 'ended' && [...missionAssignmentCounts(state).values()].some(count => count > 1)) {
+        fail(409, 'Reassign missions currently shared by multiple players, or enable unique missions in a new round.');
+      }
+      round.uniqueMissions = uniqueMissions;
+      return { detail: uniqueMissions ? 'Unique missions enabled' : 'Mission reuse enabled' };
+    }
     case 'missionArchive': {
       const mission = getMission(state, input.id);
       if (!mission.active) return null;
@@ -784,12 +818,23 @@ function applyStaffAction(state, input, now, env, prepared, reviewer) {
       const player = getPlayer(state, input.id);
       const entry = playerRound(state, player.id);
       const mission = input.missionId ? getMission(state, input.missionId) : randomMission(state, catalogId(entry.mission) ?? player.previousMissionId, player.id);
-      if (!mission?.active) fail(409, 'Choose an active mission.');
+      if (!mission?.active) fail(409, round.uniqueMissions && !input.missionId ? 'No unused missions are available.' : 'Choose an active mission.');
+      if (round.uniqueMissions && missionAssignmentCounts(state, player.id).has(mission.id)) {
+        fail(409, 'This mission has already been assigned in this round.');
+      }
       if (entry.mission?.id === (mission.revisionId ?? mission.id)) return null;
       const previousTitle = entry.mission?.title ?? 'unassigned';
       setMission(entry, mission);
       cancelReports(state, player.id, 'The target received a new mission before review.', now, true);
       return { detail: `${player.name} · ${previousTitle} → ${mission.title}` };
+    }
+    case 'playerAssignWaiting': {
+      const { player, entry } = waitingAgent(state, input.id);
+      const unused = randomMission(state, player.previousMissionId, player.id);
+      const mission = unused ?? (input.allowReuse === true ? randomMission(state, player.previousMissionId, player.id, true) : null);
+      if (!mission) fail(409, 'No missions are available for this assignment. Create a mission or confirm reuse.');
+      setMission(entry, mission);
+      return { detail: `${player.name} · ${mission.title}${unused ? '' : ' · reused by staff'}` };
     }
     case 'playerRemove': {
       const player = getPlayer(state, input.id);

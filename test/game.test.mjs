@@ -105,6 +105,48 @@ const getStaff = admin => ok(admin, '/api/staff')
 const requestId = () => crypto.randomUUID()
 const timestamp = value => new Date(value).getTime()
 
+test('unique missions queue late players and let staff create or deliberately reuse a mission', async t => {
+  const f = fixture(t)
+  await f.staffLogin()
+  const first = await f.addMission('Find the ribbon', 'Ask someone to find a gold ribbon.')
+  const firstPlayer = await f.register('Riley')
+  await f.action('missionPolicy', { uniqueMissions: true })
+  await f.action('phase', { phase: 'live' })
+  assert.equal((await getPlayer(firstPlayer.client)).mission.catalogId, first.id)
+
+  await f.addMission('Find the star', 'Ask someone to find a gold star.')
+  const late = await Promise.all([f.register('Jordan'), f.register('Morgan'), f.register('Sage')])
+  const staff = await getStaff(f.admin)
+  const assigned = staff.players.filter(player => player.mission)
+  assert.equal(assigned.length, 2)
+  assert.equal(new Set(assigned.map(player => player.mission.catalogId)).size, 2)
+  assert.equal(staff.round.uniqueMissions, true)
+  const waiting = late.filter(player => !staff.players.find(entry => entry.id === player.id).mission)
+  const [newMissionPlayer, reusePlayer] = waiting
+
+  await fails(f.admin, 409, '/api/staff/action', { action: 'playerAssign', id: reusePlayer.id, missionId: first.id })
+  await fails(f.admin, 409, '/api/staff/action', { action: 'playerAssignWaiting', id: reusePlayer.id })
+
+  const draft = { playerId: newMissionPlayer.id, title: 'Find the bells', description: 'Ask someone to make the bells ring.', target: 1 }
+  const created = await f.action('missionAssignNew', draft)
+  assert.equal((await getPlayer(newMissionPlayer.client)).mission.catalogId, created.missionId)
+  await fails(f.admin, 409, '/api/staff/action', { action: 'missionAssignNew', ...draft })
+  assert.equal((await getStaff(f.admin)).missions.length, 3)
+
+  await f.action('playerAssignWaiting', { id: reusePlayer.id, allowReuse: true })
+  assert.equal((await getPlayer(reusePlayer.client)).mission.title.startsWith('Find the '), true)
+  const after = await getStaff(f.admin)
+  assert.equal(after.players.filter(player => player.mission).length, 4)
+  assert.equal(new Set(after.players.map(player => player.mission.catalogId)).size, 3)
+  assert.match(after.audit.find(entry => entry.action === 'playerAssignWaiting').detail, /reused by staff/)
+
+  await f.action('phase', { phase: 'ended' })
+  await f.action('reset', { keepPlayers: true, randomize: true })
+  const next = await getStaff(f.admin)
+  assert.equal(next.round.uniqueMissions, true)
+  assert.equal(next.players.filter(player => !player.mission).length, 1)
+})
+
 test('staff and projector can sign in with the same four-character password', async t => {
   const f = fixture(t, { ...config(), adminPassword: 'a142', presentationPassword: 'a142' })
   await ok(f.admin, '/api/staff/login', { password: 'a142' })

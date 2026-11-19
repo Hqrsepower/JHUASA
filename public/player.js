@@ -38,6 +38,7 @@ let restoreFocus = null;
 let progressRetry = null;
 let touchStart = null;
 let stopWatch;
+let revealPending = false;
 
 const lineIcon = (name, cls = '') => `<svg class="player-icon ${cls}" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">${icons[name] || icons.sparkle}</svg>`;
 const character = (name, cls = '') => `<img class="player-character ${cls}" src="/art/${name}.svg" alt="" draggable="false">`;
@@ -95,15 +96,17 @@ function lifeCounter(me) {
 
 function missionCard(me, active) {
   if (!me.mission) {
-    const lobby = snapshot.round.phase === 'lobby';
-    return `<section class="player-empty player-empty-mission">${character('gift-agent')}
-      <div><h2>${lobby ? 'Waiting for Santa’s signal' : 'No missions available yet'}</h2>
-      <p>${lobby ? 'Your secret assignment will appear when the game begins.' : 'Santa’s workshop is still preparing your assignment. Please check with an event organizer.'}</p></div></section>`;
+    const { phase } = snapshot.round;
+    const waiting = ['live', 'paused'].includes(phase) && me.lives > 0;
+    const title = waiting ? 'Your challenge is coming' : phase === 'lobby' ? 'Waiting for Santa’s signal' : 'No mission assigned';
+    const copy = waiting ? 'The organizers are preparing your mission. It’ll appear right here.' : phase === 'lobby' ? 'Your secret assignment will appear when the game begins.' : 'This round has no mission for you.';
+    return `<section class="player-empty player-empty-mission" ${waiting ? 'role="status"' : ''}>${character('gift-agent')}
+      <div><h2>${title}</h2><p>${copy}</p></div></section>`;
   }
   const { title, description, target } = me.mission;
   const done = me.progress >= target;
   const percent = Math.max(0, Math.min(100, 100 * me.progress / target));
-  return `<section class="player-mission-card">
+  return `<section class="player-mission-card" data-mission-destination tabindex="-1">
     <div class="player-mission-head"><span>${lineIcon('lock')} Your secret mission</span><span class="player-dossier-decoration" aria-hidden="true">${lineIcon('sparkle')}</span></div>
     <h2>${esc(title)}</h2><p class="player-mission-description">${esc(description)}</p>
     <div class="player-progress">
@@ -217,8 +220,29 @@ function rosterMarkup() {
   return players.map(p => `<button type="button" class="player-choice" data-act="agent-pick" data-id="${esc(p.id)}"><span><strong>${esc(p.name)}</strong></span>${lineIcon('user')}</button>`).join('');
 }
 
+function missionRevealMarkup() {
+  const { title, description, target } = snapshot.me.mission;
+  return `<span class="sr-only" id="player-dialog-title">Your secret mission</span>
+    <div class="player-reveal-card" data-reveal-card>
+      <button class="player-reveal-face player-reveal-front" type="button" data-act="reveal-mission">
+        <span class="player-reveal-seal">${lineIcon('mail')}</span>
+        <strong>Your secret mission</strong>
+        <span class="player-reveal-prompt">Tap to reveal</span>
+      </button>
+      <div class="player-reveal-face player-reveal-back" data-reveal-back aria-hidden="true" inert>
+        <span class="player-step-label">${lineIcon('lock')} Your secret mission</span>
+        <h2>${esc(title)}</h2>
+        <p>${esc(description)}</p>
+        <p class="player-reveal-target">${target} ${target === 1 ? 'completion' : 'completions'} required</p>
+        <button class="player-btn" data-act="close-overlay" type="button" data-reveal-okay>Okay</button>
+      </div>
+    </div>`;
+}
+
 function renderOverlay(focus = true) {
   const existing = app.querySelector('[data-player-overlay]');
+  const isReveal = overlay?.type === 'mission-reveal';
+  app.toggleAttribute('data-mission-covered', isReveal);
   if (!overlay) {
     existing?.remove();
     document.body.classList.remove('player-dialog-open');
@@ -226,6 +250,7 @@ function renderOverlay(focus = true) {
   }
   let html;
   if (overlay.type === 'rules') html = rulesOverlay();
+  if (isReveal) html = missionRevealMarkup();
   if (overlay.type === 'register') html = `<div class="player-dialog-badge">${lineIcon('lock')}</div><h2 id="player-dialog-title">Choose your secret PIN</h2><p>Agent ${esc(overlay.name)}, you’ll need this four-digit PIN to return to your mission.</p>
     <form data-form="register">${pinMarkup()}<p class="player-form-error" data-pin-error role="alert"></p>
     <div class="player-action-row"><button type="button" class="player-btn player-btn-outline" data-act="close-overlay">Back</button><button class="player-btn player-btn-red" type="submit">Join the game</button></div></form>`;
@@ -236,13 +261,14 @@ function renderOverlay(focus = true) {
     <div class="player-action-row"><button type="button" class="player-btn player-btn-outline" data-act="return">Back</button><button class="player-btn player-btn-red" type="submit">Sign in</button></div></form>
     <p class="player-pin-help">Forgot your PIN? Ask an event organizer to reset it.</p>`;
   if (overlay.type === 'logout') html = `<div class="player-dialog-badge">${lineIcon('exit')}</div><h2 id="player-dialog-title">Sign out?</h2><p>Your mission and progress will be here when you come back. You’ll need your PIN to sign in again.</p><p data-pin-error class="player-form-error" role="alert"></p><div class="player-action-row"><button class="player-btn player-btn-outline" type="button" data-act="close-overlay">Cancel</button><button class="player-btn player-btn-red" type="button" data-act="logout">Sign out</button></div>`;
-  const markup = `<div class="player-overlay" data-player-overlay><section class="player-dialog ${overlay.type === 'rules' ? 'player-tour' : ''}" role="dialog" aria-modal="true" aria-labelledby="player-dialog-title" tabindex="-1" data-player-dialog><button type="button" class="player-dialog-close" data-act="close-overlay" aria-label="Close">${lineIcon('close')}</button>${html}</section></div>`;
+  const dialogClass = isReveal ? 'player-reveal-dialog' : overlay.type === 'rules' ? 'player-tour' : '';
+  const markup = `<div class="player-overlay" data-player-overlay><section class="player-dialog ${dialogClass}" role="dialog" aria-modal="true" aria-labelledby="player-dialog-title" tabindex="-1" data-player-dialog><button type="button" class="player-dialog-close" data-act="close-overlay" aria-label="Close">${lineIcon('close')}</button>${html}</section></div>`;
   if (existing) existing.outerHTML = markup;
   else app.insertAdjacentHTML('beforeend', markup);
   document.body.classList.add('player-dialog-open');
   if (focus) {
     const dialog = app.querySelector('[data-player-dialog]');
-    (dialog.querySelector('[data-pin], #player-roster-query') || dialog).focus();
+    (dialog.querySelector('[data-pin], #player-roster-query, [data-act="reveal-mission"]') || dialog).focus();
   }
 }
 
@@ -254,6 +280,7 @@ function setOverlay(next) {
 
 function dismiss() {
   if (saving) return;
+  if (overlay?.type === 'mission-reveal') return landMissionCard();
   if (overlay?.onboarding && snapshot?.me) {
     rememberRules(snapshot.me.id);
     api('/api/player/tutorial', {}).catch(() => {});
@@ -262,6 +289,63 @@ function dismiss() {
   renderOverlay();
   if (restoreFocus?.isConnected) restoreFocus.focus();
   restoreFocus = null;
+  presentMission();
+}
+
+function presentMission() {
+  if (!revealPending || overlay || !snapshot?.me?.mission) return;
+  revealPending = false;
+  if (view !== 'mission') {
+    view = 'mission';
+    render();
+  }
+  endIntro();
+  window.scrollTo({ top: 0, behavior: 'auto' });
+  setOverlay({ type: 'mission-reveal' });
+}
+
+function revealMission(button) {
+  const card = button.closest('[data-reveal-card]');
+  const back = card.querySelector('[data-reveal-back]');
+  card.dataset.revealed = 'true';
+  button.inert = true;
+  button.setAttribute('aria-hidden', 'true');
+  back.inert = false;
+  back.removeAttribute('aria-hidden');
+  back.querySelector('[data-reveal-okay]').focus();
+}
+
+function landMissionCard() {
+  const card = app.querySelector('[data-reveal-card]');
+  const target = app.querySelector('[data-mission-destination]');
+  const start = card?.getBoundingClientRect();
+  const end = target?.getBoundingClientRect();
+  let flight;
+  if (start?.width && end?.width && typeof card.animate === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    flight = document.createElement('div');
+    flight.className = 'player-mission-flight';
+    flight.inert = true;
+    flight.setAttribute('aria-hidden', 'true');
+    Object.assign(flight.style, { left: `${start.left}px`, top: `${start.top}px`, width: `${start.width}px`, height: `${start.height}px` });
+    flight.append(card.cloneNode(true));
+    app.append(flight);
+    app.setAttribute('data-mission-flight', '');
+  }
+  overlay = null;
+  renderOverlay();
+  restoreFocus = null;
+  const complete = () => {
+    flight?.remove();
+    app.removeAttribute('data-mission-flight');
+    app.querySelector('[data-mission-destination]')?.focus({ preventScroll: true });
+    presentMission();
+  };
+  if (!flight) return complete();
+  flight.animate([
+    { transform: 'none', opacity: 1 },
+    { opacity: 1, offset: .66 },
+    { transform: `translate(${end.left - start.left}px, ${end.top - start.top}px) scale(${end.width / start.width}, ${end.height / start.height})`, opacity: 0 },
+  ], { duration: 640, easing: 'cubic-bezier(.22,.72,.23,1)', fill: 'forwards' }).finished.then(complete, complete);
 }
 
 function statusMarkup() {
@@ -301,6 +385,20 @@ function update(incoming) {
   snapshot = incoming;
   offline = false;
   const roundChanged = previousRound?.id !== incoming.round.id;
+  const mission = incoming.me?.mission;
+  if (!mission) {
+    revealPending = false;
+    if (overlay?.type === 'mission-reveal') {
+      overlay = null;
+      renderOverlay();
+    }
+  } else if (former?.id !== incoming.me.id || former?.mission?.id !== mission.id || roundChanged) {
+    revealPending = true;
+    if (overlay?.type === 'mission-reveal') {
+      revealPending = false;
+      renderOverlay();
+    }
+  }
   const resumed = previousRound?.phase !== 'live' && incoming.round.phase === 'live';
   const revived = former?.lives === 0 && incoming.me?.lives > 0;
   if (view === 'report' && (!reportFlow || roundChanged || resumed || revived)) {
@@ -311,13 +409,13 @@ function update(incoming) {
     toast('You’ve been eliminated.', 'error');
   }
   if (revived) toast('You’re back in the game.');
-  if (incoming.me && !former?.mission && former && incoming.me.mission) toast('Your secret mission has arrived.');
   if (incoming.me && former && incoming.round.phase === 'live' && former.lives > incoming.me.lives && incoming.me.lives > 0) toast('You have one life left.', 'error');
   if (incoming.reports?.some(report => report.status === 'approved' && oldReports.get(report.id) === 'pending')) toast('An organizer confirmed your report.');
   if (changed || recovering) render({ preserveInput: true });
   if (!former && incoming.me?.tutorialDone === false && !getLocal(`ssm-rules-${incoming.me.id}`) && !overlay) {
     setOverlay({ type: 'rules', scene: 0, onboarding: true });
   }
+  presentMission();
 }
 
 async function refresh() {
@@ -420,7 +518,6 @@ async function authenticate(form) {
     renderOverlay();
     view = 'mission';
     await refresh();
-    if (register && snapshot?.me && overlay?.type !== 'rules') setOverlay({ type: 'rules', scene: 0, onboarding: true });
   } catch (error) {
     if (overlay) setError(errorNode, error);
     else { toast(error.message, 'error'); connectionLost(); }
@@ -489,6 +586,7 @@ async function logout(button) {
     view = 'mission';
     reportFlow = null;
     progressRetry = null;
+    revealPending = false;
     overlay = null;
     renderOverlay();
     render();
@@ -555,6 +653,7 @@ app.addEventListener('click', event => {
   if (act === 'return') openReturn();
   if (act === 'retry-roster') queryRoster(overlay.query);
   if (act === 'close-overlay') dismiss();
+  if (act === 'reveal-mission') revealMission(btn);
   if (act === 'rules') setOverlay({ type: 'rules', scene: 0 });
   if (act === 'tour-next') gotoScene(overlay.scene + 1);
   if (act === 'tour-back') gotoScene(overlay.scene - 1);
@@ -604,7 +703,7 @@ document.addEventListener('keydown', event => {
   }
   if (event.key !== 'Tab' || !overlay) return;
   const dialog = app.querySelector('[data-player-dialog]');
-  const items = [...dialog.querySelectorAll('button:not([disabled]),input:not([disabled]),a[href]')];
+  const items = [...dialog.querySelectorAll('button:not([disabled]),input:not([disabled]),a[href]')].filter(item => !item.closest('[inert]'));
   if (event.shiftKey && (document.activeElement === items[0] || document.activeElement === dialog)) {
     event.preventDefault();
     items.at(-1)?.focus();
