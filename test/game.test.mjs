@@ -295,7 +295,7 @@ test('mission catalog, sign-in and progress survive database restart', async t =
   assert.equal((await getStaff(nextAdmin)).missions[0].id, expected.mission.id)
 })
 
-test('edited and archived missions preserve distinct, guessable versions and private assignments', async t => {
+test('edited and archived missions preserve distinct versions and keep the catalog private', async t => {
   const f = fixture(t)
   await f.staffLogin()
   const bells = await f.addMission('Jingle Spy', 'Find the hidden bells.', 4)
@@ -328,8 +328,8 @@ test('edited and archived missions preserve distinct, guessable versions and pri
   assert.deepEqual(options.players, options.players.map(({ id, name }) => ({ id, name })))
   assert.equal(options.players.some(p => p.id === maya.id), false)
   assert.equal(options.players.some(p => p.id === taylor.id), true)
-  assert.equal(options.missions.find(mission => mission.id === oldMission.id).description, oldMission.description)
-  assert.equal(options.missions.find(mission => mission.id === editedMission.id).description, edit.description)
+  assert.deepEqual(Object.keys(options), ['players'])
+  assert.doesNotMatch(JSON.stringify(options), /Jingle Spy|Ribbon Runner|wear a bell|tie a bow/)
   assertProjection(options)
   const catalog = (await getStaff(f.admin)).missions
   assert.equal(catalog.find(mission => mission.id === bells.id).active, false)
@@ -390,10 +390,10 @@ test('moderation is atomic across duplicate and concurrent decisions, with queue
   }
   await f.action('phase', { phase: 'live' })
 
-  const submit = async (reporter, target, mission) => {
-    await ok(reporter.client, '/api/report', { targetId: target.id, missionId: mission.id, requestId: requestId() })
+  const submit = async (reporter, target, guessText) => {
+    const { reportId } = await ok(reporter.client, '/api/report', { targetId: target.id, guessText, requestId: requestId() })
     const report = (await getStaff(f.admin)).reports.find(candidate => (
-      candidate.reporterId === reporter.id && candidate.targetId === target.id && candidate.status === 'pending'
+      candidate.id === reportId && candidate.reporterId === reporter.id && candidate.targetId === target.id && candidate.status === 'pending'
     ))
     assert.ok(report)
     return report
@@ -401,20 +401,27 @@ test('moderation is atomic across duplicate and concurrent decisions, with queue
   const decision = (report, verdict) => f.action('review', { id: report.id, decision: verdict })
 
   await fails(casey.client, [400, 409], '/api/report', {
-    targetId: casey.id, missionId: bells.id, requestId: requestId(),
+    targetId: casey.id, guessText: 'Get someone to ring a bell.', requestId: requestId(),
   })
-  const correct = await submit(casey, blair, bows)
-  assert.equal(correct.match, true)
+  for (const input of [{ missionId: bows.id }, { guessText: '   ' }, { guessText: 'a'.repeat(501) }]) {
+    await fails(casey.client, 400, '/api/report', { targetId: blair.id, ...input, requestId: requestId() })
+  }
+  const guessText = 'I think Blair needs people to compliment their ribbon.'
+  const correct = await submit(casey, blair, guessText)
+  assert.equal(correct.guessText, guessText)
+  assert.equal(correct.match, undefined)
   assert.equal(correct.actualTitle, bows.title)
-  await fails(casey.client, 409, '/api/report', { targetId: blair.id, missionId: bows.id, requestId: requestId() })
-  const duplicateTarget = await submit(drew, blair, bows)
-  const wrong = await submit(casey, maya, bells)
-  assert.equal(wrong.match, false)
+  assert.equal(correct.actualDescription, bows.description)
+  await fails(casey.client, 409, '/api/report', { targetId: blair.id, guessText: `  ${guessText.toUpperCase()}  `, requestId: requestId() })
+  const duplicateTarget = await submit(drew, blair, 'Trying to get compliments on a ribbon.')
+  const wrong = await submit(casey, maya, 'Getting someone to ring a bell.')
+  assert.equal(wrong.match, undefined)
   const returning = browser(f.app)
   await ok(returning, '/api/login', { id: casey.id, pin: '0426' })
   const pendingReport = (await ok(returning, '/api/player')).reports.find(report => report.id === wrong.id)
   assert.equal(pendingReport.status, 'pending')
-  assert.doesNotMatch(JSON.stringify(await ok(casey.client, '/api/player')), /actualTitle|actualMission|Bow Bureau.*actual/)
+  assert.equal(pendingReport.guessText, wrong.guessText)
+  assert.doesNotMatch(JSON.stringify(await ok(casey.client, '/api/player')), /actualTitle|actualDescription|actualMission|Bow Bureau|Collect two compliments/)
   const staleOptions = await ok(blair.client, '/api/options')
   assert.equal(staleOptions.players.some(p => p.id === casey.id), true)
 
@@ -439,9 +446,9 @@ test('moderation is atomic across duplicate and concurrent decisions, with queue
   assert.equal((await getPlayer(casey.client)).lives, 1)
   assert.equal((await getStaff(f.admin)).reports.find(r => r.id === duplicateTarget.id).status, 'cancelled')
   await fails(blair.client, 409, '/api/progress', { delta: 1, requestId: requestId() })
-  await fails(blair.client, 409, '/api/report', { targetId: casey.id, missionId: bells.id, requestId: requestId() })
+  await fails(blair.client, 409, '/api/report', { targetId: casey.id, guessText: 'Get someone to ring a bell.', requestId: requestId() })
 
-  const wrongAgain = await submit(casey, drew, bows)
+  const wrongAgain = await submit(casey, drew, 'Get people to compliment their ribbon.')
   await decision(wrongAgain, 'rejected')
   assert.equal((await getPlayer(casey.client)).status, 'eliminated')
   assert.equal((await getPlayer(casey.client)).lives, 0)
@@ -538,7 +545,7 @@ test('ending saves an authoritative winner snapshot and new rounds preserve the 
   assert.equal((await ok(caught.client, '/api/player')).winner, false)
   assert.equal((await ok(unfinished.client, '/api/player')).winner, false)
   await fails(unfinished.client, 409, '/api/progress', { delta: 1, requestId: requestId() })
-  await fails(unfinished.client, 409, '/api/report', { targetId: survivor.id, missionId: star.id, requestId: requestId() })
+  await fails(unfinished.client, 409, '/api/report', { targetId: survivor.id, guessText: 'Ask someone to draw a star.', requestId: requestId() })
   const winnersEvent = staff.events.find(event => event.type === 'winners')
   assert.ok(winnersEvent)
   t.mock.timers.setTime(timestamp(winnersEvent.startAt) + 1)

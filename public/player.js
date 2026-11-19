@@ -140,18 +140,17 @@ function dashboardContent() {
 function reportHistory() {
   const reports = snapshot.reports || [];
   if (!reports.length) return '<p class="player-muted">You haven’t submitted a report this round.</p>';
-  return `<ul class="player-report-history">${reports.map(report => `<li><div><strong>${esc(report.targetName)}</strong><span>${esc(report.guessedTitle || '')}</span></div><div><span class="player-report-status" data-status="${esc(report.status)}">${esc(report.status)}</span>${report.createdAt ? `<small>${esc(time(report.createdAt))}</small>` : ''}</div></li>`).join('')}</ul>`;
+  return `<ul class="player-report-history">${reports.map(report => `<li><div><strong>${esc(report.targetName)}</strong><span>${esc(report.guessText ?? report.guessedTitle ?? '')}</span></div><div><span class="player-report-status" data-status="${esc(report.status)}">${esc(report.status)}</span>${report.createdAt ? `<small>${esc(time(report.createdAt))}</small>` : ''}</div></li>`).join('')}</ul>`;
 }
 
 function reportList() {
   const flow = reportFlow;
   if (!flow || flow.loading) return '<p class="player-muted" role="status">Finding agents…</p>';
   if (flow.error) return `<p class="player-form-error" role="alert">${esc(flow.error)}</p><button class="player-btn player-btn-outline" type="button" data-act="reload-options">Try again</button>`;
-  const items = flow.step === 1 ? flow.players : flow.missions;
   const query = flow.query.trim().toLocaleLowerCase();
-  const filtered = items.filter(item => `${item.name || item.title} ${item.description || ''}`.toLocaleLowerCase().includes(query));
-  if (!filtered.length) return `<p class="player-muted">${query ? 'No matches.' : flow.step === 1 ? 'There are no other eligible agents to report.' : 'There are no missions to choose from yet.'}</p>`;
-  return filtered.map(item => `<button class="player-choice" type="button" data-act="${flow.step === 1 ? 'select-target' : 'select-mission'}" data-id="${esc(item.id)}" ${offline ? 'disabled' : ''}><span><strong>${esc(item.name || item.title)}</strong>${item.description ? `<small>${esc(item.description)}${item.target ? ` · ${item.target} required` : ''}</small>` : ''}</span>${lineIcon(flow.step === 1 ? 'user' : 'folder')}</button>`).join('');
+  const filtered = flow.players.filter(player => player.name.toLocaleLowerCase().includes(query));
+  if (!filtered.length) return `<p class="player-muted">${query ? 'No matches.' : 'There are no other eligible agents to report.'}</p>`;
+  return filtered.map(player => `<button class="player-choice" type="button" data-act="select-target" data-id="${esc(player.id)}" ${offline ? 'disabled' : ''}><strong>${esc(player.name)}</strong>${lineIcon('user')}</button>`).join('');
 }
 
 function reportPanel() {
@@ -163,20 +162,19 @@ function reportPanel() {
       ? 'Eliminated agents can review their reports.'
       : 'You can submit a report when the game is live.';
     builder = blank('lock', 'Reports are closed', info);
-  } else if (flow?.step === 4) {
-    builder = `<div class="player-report-success"><span>${lineIcon('check')}</span><h2>Report submitted</h2><p>Santa’s investigators are reviewing your claim.</p><button class="player-btn player-btn-red" data-act="nav" data-view="mission" type="button">Back to my mission</button></div>`;
   } else if (flow?.step === 3) {
-    builder = `<section class="player-report-builder"><div class="player-step-label">Step 3 of 3</div><h2>Confirm your report</h2><p>Report <strong>${esc(flow.target.name)}</strong> for this mission?</p><blockquote><strong>${esc(flow.mission.title)}</strong><span>${esc(flow.mission.description)}${flow.mission.target ? ` · ${flow.mission.target} required` : ''}</span></blockquote><p class="player-penalty">${lineIcon('heart')} A wrong report costs one life.</p>
-      <p class="player-form-error" data-report-error role="alert">${esc(flow.submitError)}</p>
-      <div class="player-action-row"><button class="player-btn player-btn-outline" data-act="report-back" type="button">Back</button><button class="player-btn player-btn-red" data-act="report-submit" type="button" ${offline ? 'disabled' : ''}>Submit report</button></div></section>`;
+    builder = `<div class="player-report-success"><span>${lineIcon('check')}</span><h2>Report submitted</h2><p>An organizer will review your guess.</p><button class="player-btn player-btn-red" data-act="nav" data-view="mission" type="button">Back to my mission</button></div>`;
+  } else if (flow?.step === 2) {
+    builder = `<form class="player-report-builder" data-form="report"><div class="player-step-label">Step 2 of 2</div><h2>Describe their mission</h2>
+      <label class="player-report-guess" for="player-report-guess">What do you think ${esc(flow.target.name)} is trying to do?</label>
+      <textarea id="player-report-guess" name="guessText" rows="4" minlength="3" maxlength="500" placeholder="Describe what you think their mission is" aria-describedby="player-report-note player-report-error" ${saving ? 'readonly' : ''} required>${esc(flow.guessText)}</textarea>
+      <p id="player-report-note" class="player-penalty">${lineIcon('heart')} An organizer will review your guess. A wrong report costs one life.</p>
+      <p class="player-form-error" id="player-report-error" role="alert">${esc(flow.submitError)}</p>
+      <div class="player-action-row"><button class="player-btn player-btn-outline" data-act="report-back" type="button" ${saving ? 'disabled' : ''}>Back</button><button class="player-btn player-btn-red" type="submit" ${offline || saving ? 'disabled' : ''}>Submit report</button></div></form>`;
   } else {
-    const step = flow?.step || 1;
-    const label = step === 1 ? 'Choose an agent' : 'Choose their suspected mission';
-    builder = `<section class="player-report-builder"><div class="player-step-label">Step ${step} of 3</div><h2>${label}</h2>
-      ${step === 2 ? `<p>Suspect <strong>${esc(flow.target.name)}</strong></p>` : ''}
-      <label class="player-search"><span class="sr-only">${step === 1 ? 'Search agents' : 'Search missions'}</span>${lineIcon('search')}<input type="search" id="player-report-query" placeholder="${step === 1 ? 'Search agents' : 'Search missions'}" value="${esc(flow?.query || '')}"></label>
+    builder = `<section class="player-report-builder"><div class="player-step-label">Step 1 of 2</div><h2>Choose an agent</h2>
+      <label class="player-search"><span class="sr-only">Search agents</span>${lineIcon('search')}<input type="search" id="player-report-query" placeholder="Search agents" value="${esc(flow?.query || '')}"></label>
       <div class="player-choices" data-report-choices>${reportList()}</div>
-      ${step === 2 ? '<button class="player-btn player-btn-outline" data-act="report-back" type="button">Back</button>' : ''}
     </section>`;
   }
   return `<div class="player-panel-heading"><p class="player-overline">Field reports</p><h1>Report a suspect</h1></div>${builder}<section class="player-history"><h2>Your reports</h2>${reportHistory()}</section>`;
@@ -374,6 +372,7 @@ function statusMarkup() {
 function render({ preserveInput = false } = {}) {
   const previous = document.activeElement;
   const priorId = previous?.id;
+  const guessSelection = priorId === 'player-report-guess' ? [previous.selectionStart, previous.selectionEnd] : null;
   const name = preserveInput && document.getElementById('player-name')?.value;
   const base = app.querySelector('[data-player-base]');
   const contents = snapshot?.me ? dashboard() : welcome();
@@ -386,6 +385,7 @@ function render({ preserveInput = false } = {}) {
   if (!overlay && priorId) {
     const next = document.getElementById(priorId);
     next?.focus();
+    if (guessSelection) next?.setSelectionRange(...guessSelection);
   }
 }
 
@@ -422,7 +422,7 @@ function update(incoming) {
   const resumed = previousRound?.phase !== 'live' && incoming.round.phase === 'live';
   const revived = former?.lives === 0 && incoming.me?.lives > 0;
   if (view === 'report' && (!reportFlow || roundChanged || resumed || revived)) {
-    reportFlow = { step: 1, query: '', loading: true, players: [], missions: [] };
+    reportFlow = { step: 1, query: '', loading: true, players: [] };
     if (incoming.round.phase === 'live' && incoming.me?.lives > 0) loadOptions();
   }
   if (incoming.me && former && incoming.round.phase === 'live' && former.lives > 0 && incoming.me.lives === 0) {
@@ -491,7 +491,6 @@ async function loadOptions() {
     const data = await api('/api/options');
     if (version !== latestOptionsVersion || flow !== reportFlow) return;
     flow.players = data.players;
-    flow.missions = data.missions;
     flow.loading = false;
     flow.error = '';
   } catch (error) {
@@ -504,10 +503,10 @@ async function loadOptions() {
 }
 
 function nav(target) {
-  if (view === target && (target !== 'report' || reportFlow?.step !== 4)) return;
+  if (view === target && (target !== 'report' || reportFlow?.step !== 3)) return;
   view = target;
   if (target === 'report') {
-    reportFlow = { step: 1, query: '', loading: true, players: [], missions: [] };
+    reportFlow = { step: 1, query: '', loading: true, players: [] };
     if (snapshot?.round?.phase === 'live' && snapshot.me.lives > 0) loadOptions();
   }
   if (target !== 'report') reportFlow = null;
@@ -572,26 +571,31 @@ async function changeProgress(delta, button) {
   }
 }
 
-async function submitReport(button) {
+async function submitReport(form) {
   const flow = reportFlow;
-  if (saving || offline || !flow?.target || !flow?.mission) return;
+  if (saving || offline || flow?.step !== 2) return;
+  const guessText = new FormData(form).get('guessText').trim();
+  const errorNode = () => document.getElementById('player-report-error');
+  if ([...guessText].length < 3) {
+    flow.submitError = 'Describe your guess in at least three characters.';
+    setError(errorNode(), flow.submitError);
+    return;
+  }
   saving = true;
-  button.disabled = true;
   flow.requestId ??= uid();
   flow.submitError = '';
-  setError(app.querySelector('[data-report-error]'), '');
+  render();
   try {
-    await api('/api/report', { targetId: flow.target.id, missionId: flow.mission.id, requestId: flow.requestId, roundId: snapshot.round.id });
-    flow.step = 4;
+    await api('/api/report', { targetId: flow.target.id, guessText, requestId: flow.requestId, roundId: snapshot.round.id });
+    flow.step = 3;
     render();
     await refresh();
   } catch (error) {
     flow.submitError = error.message;
-    setError(app.querySelector('[data-report-error]'), error);
-    if (flow.step === 4) connectionLost();
+    if (flow.step === 3) connectionLost();
   } finally {
     saving = false;
-    button.disabled = false;
+    render();
   }
 }
 
@@ -641,6 +645,7 @@ app.addEventListener('submit', event => {
   const form = event.target.closest('[data-form]');
   if (!form) return;
   event.preventDefault();
+  if (form.dataset.form === 'report') { submitReport(form); return; }
   if (form.dataset.form !== 'name') { authenticate(form); return; }
   const entry = playerEntry(new FormData(form).get('name'), registrationOpen());
   if (entry.path) { location.assign(entry.path); return; }
@@ -662,6 +667,10 @@ app.addEventListener('input', event => {
   if (event.target.id === 'player-report-query' && reportFlow) {
     reportFlow.query = event.target.value;
     app.querySelector('[data-report-choices]').innerHTML = reportList();
+  }
+  if (event.target.id === 'player-report-guess' && reportFlow) {
+    Object.assign(reportFlow, { guessText: event.target.value, requestId: null, submitError: '' });
+    setError(document.getElementById('player-report-error'), '');
   }
 });
 
@@ -696,21 +705,16 @@ app.addEventListener('click', event => {
   if (act === 'select-target') {
     const choice = reportFlow.players.find(item => item.id === id);
     if (!choice) return;
-    Object.assign(reportFlow, { target: choice, query: '', step: 2 });
+    Object.assign(reportFlow, { target: choice, guessText: '', query: '', requestId: null, submitError: '', step: 2 });
     render();
-  }
-  if (act === 'select-mission') {
-    const choice = reportFlow.missions.find(item => item.id === id);
-    if (!choice) return;
-    Object.assign(reportFlow, { mission: choice, requestId: null, submitError: '', step: 3 });
-    render();
+    document.getElementById('player-report-guess')?.focus();
   }
   if (act === 'report-back') {
-    Object.assign(reportFlow, { query: '', step: reportFlow.step - 1 });
-    if (reportFlow.step === 1) loadOptions();
+    Object.assign(reportFlow, { query: '', step: 1 });
+    loadOptions();
     render();
+    document.getElementById('player-report-query')?.focus();
   }
-  if (act === 'report-submit') submitReport(btn);
   if (act === 'logout-dialog') setOverlay({ type: 'logout' });
   if (act === 'logout') logout(btn);
   if (act === 'skip-intro') endIntro();

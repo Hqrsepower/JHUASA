@@ -395,7 +395,7 @@ body {
 .ops-report-details { display: grid; gap: .6rem; grid-template-columns: repeat(2, minmax(0,1fr)); }
 .ops-report-details div { background: #f5f3e9; border-radius: 8px; padding: .6rem; }
 .ops-report-details dt { color: var(--ops-muted); font-size: .8rem; font-weight: 650; }
-.ops-report-details dd { margin: .24rem 0 0; font-weight: 740; }
+.ops-report-details dd { margin: .24rem 0 0; font-weight: 740; overflow-wrap: anywhere; }
 .ops-report-details dd span { display: block; color: var(--ops-muted); font-size: .88rem; font-weight: 500; margin-top: .2rem; }
 .ops-report .ops-reason { margin: .4rem 0 .9rem; }
 

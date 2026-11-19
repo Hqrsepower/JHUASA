@@ -58,7 +58,7 @@ function newRound(settings, now) {
     id: id(), phase: 'lobby', createdAt: date(now), startedAt: null, endedAt: null,
     lateJoin: settings?.lateJoin ?? true, delay: settings?.delay ?? 5, duration: settings?.duration ?? 8,
     uniqueMissions: settings?.uniqueMissions ?? false,
-    states: {}, guessCatalog: {}, reports: [], events: [], results: null, finaleEnabled: false,
+    states: {}, reports: [], events: [], results: null, finaleEnabled: false,
   };
 }
 function initialState() {
@@ -286,19 +286,6 @@ function requirePlayable(state, playerId, input) {
   return entry;
 }
 function assignable(state) { return Object.values(state.missions).filter(mission => mission.active); }
-function rememberGuessOption(round, mission) {
-  // The guess list tracks every revision visible this round, irrespective of assignments.
-  const snapshot = missionSnapshot(mission);
-  round.guessCatalog ??= {};
-  if (!round.guessCatalog[snapshot.id] && Object.keys(round.guessCatalog).length >= 360) {
-    fail(409, 'This round has reached its mission revision limit.');
-  }
-  round.guessCatalog[snapshot.id] = snapshot;
-}
-function missionOptions(state) {
-  if (state.round.guessCatalog) return new Map(Object.entries(state.round.guessCatalog));
-  return new Map(Object.values(state.missions).map(missionSnapshot).map(mission => [mission.id, mission]));
-}
 function missionAssignmentCounts(state, excludePlayerId) {
   const counts = new Map();
   for (const [playerId, entry] of Object.entries(state.round.states)) {
@@ -435,14 +422,19 @@ function playerView(player, playerState) {
   };
 }
 function ownReport(report) {
-  return { id: report.id, targetName: report.targetName, status: report.status, guessedTitle: report.guess.title, createdAt: report.createdAt, reason: report.reason ?? null };
+  return {
+    id: report.id, targetName: report.targetName, status: report.status, createdAt: report.createdAt, reason: report.reason ?? null,
+    ...(report.guessText !== undefined ? { guessText: report.guessText } : { guessedTitle: report.guess.title }),
+  };
 }
 function staffReport(report) {
   return {
     ...ownReport(report), reporterId: report.reporterId, targetId: report.targetId, reporterName: report.reporterName,
-    guessedDescription: report.guess.description, actualTitle: report.actual.title, actualDescription: report.actual.description,
-    guessedTarget: report.guess.target, actualTarget: report.actual.target,
-    match: report.guess.id === report.actual.id, reviewedAt: report.reviewedAt ?? null, reviewedBy: report.reviewedBy ?? null,
+    actualTitle: report.actual.title, actualDescription: report.actual.description, actualTarget: report.actual.target,
+    ...(report.guess ? {
+      guessedDescription: report.guess.description, guessedTarget: report.guess.target, match: report.guess.id === report.actual.id,
+    } : {}),
+    reviewedAt: report.reviewedAt ?? null, reviewedBy: report.reviewedBy ?? null,
   };
 }
 
@@ -613,17 +605,17 @@ async function playerAction(db, request, path, input) {
     const target = getPlayer(state, input.targetId);
     const targetState = playerRound(state, target.id);
     if (target.id === playerId || targetState.lives < 1 || !targetState.mission) fail(409, 'Choose an eligible active agent.');
-    const guess = missionOptions(state).get(entityId(input.missionId));
-    if (!guess) fail(409, 'Choose a mission from the current catalog.');
+    const guessText = text(input.guessText, 'your mission guess', 3, 500);
     const pending = state.round.reports.filter(report => report.status === 'pending' && report.reporterId === playerId);
-    if (pending.some(report => report.targetId === target.id && report.guess.id === guess.id)) {
+    if (pending.some(report => report.targetId === target.id &&
+        normalized(report.guessText ?? report.guess.title) === normalized(guessText))) {
       fail(409, 'That accusation is already awaiting review.');
     }
     if (pending.length >= 5) fail(409, 'Five reports are awaiting review. Wait for an organizer to review them.');
     if (state.round.reports.length >= 500) fail(409, 'The round has reached its report limit. Let an organizer know.');
     const report = {
       id: id(), requestId: actionId, reporterId: playerId, reporterName: player.name, targetId: target.id, targetName: target.name,
-      guess: missionSnapshot(guess), actual: { ...targetState.mission }, status: 'pending', createdAt: date(now),
+      guessText, actual: { ...targetState.mission }, status: 'pending', createdAt: date(now),
     };
     state.round.reports.push(report);
     player.lastActive = date(now);
@@ -645,9 +637,6 @@ function saveMission(state, input, now) {
   if (materialChange) mission.revisionId = id();
   Object.assign(mission, { title, description, target, active, updatedAt: date(now) });
   state.missions[mission.id] = mission;
-  if (['live', 'paused'].includes(state.round.phase) && active) {
-    rememberGuessOption(state.round, mission);
-  }
   return { detail: materialChange && assigned.length ? `${mission.title} · existing assignments kept` : mission.title, missionId: mission.id };
 }
 
@@ -732,10 +721,6 @@ function advancePhase(state, next, now) {
     for (const entry of Object.values(round.states)) {
       Object.assign(entry, { lives: 2, progress: 0, completedAt: null, eliminatedAt: null, progressRequests: [] });
       if (entry.mission && !state.missions[catalogId(entry.mission)]?.active) entry.mission = null;
-    }
-    for (const mission of assignable(state)) rememberGuessOption(round, mission);
-    for (const entry of Object.values(round.states)) {
-      if (entry.mission) rememberGuessOption(round, entry.mission);
     }
     assignUnassigned(state);
     round.startedAt = date(now);
@@ -969,9 +954,7 @@ async function getPlayerRoute(request, db, path, url) {
     const entry = state.round.states[player.id];
     return player.id !== playerId && entry?.lives > 0 && entry.mission;
   }).map(({ id: playerId, name }) => ({ id: playerId, name })).sort((a, b) => a.name.localeCompare(b.name));
-  const missions = Array.from(missionOptions(state).values())
-    .map(({ id: missionId, title, description, target }) => ({ id: missionId, title, description, target })).sort((a, b) => a.title.localeCompare(b.title));
-  return json({ players, missions });
+  return json({ players });
 }
 
 export async function handleApi(request, env) {

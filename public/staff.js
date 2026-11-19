@@ -356,7 +356,7 @@ function reportRows(data) {
       <h3>${esc(report.reporterName)} reported ${esc(report.targetName)}</h3></div>
       ${badge(report.status)}
     </header>
-    <dl class="ops-report-details"><div><dt>Suspected mission</dt><dd>${esc(report.guessedTitle || 'Unavailable')}${report.guessedDescription ? `<span>${esc(report.guessedDescription)}${report.guessedTarget ? ` · Goal of ${esc(report.guessedTarget)}` : ''}</span>` : ''}</dd></div>
+    <dl class="ops-report-details"><div><dt>Player’s guess</dt><dd>${esc(report.guessText ?? report.guessedTitle ?? 'Unavailable')}${report.guessedDescription ? `<span>${esc(report.guessedDescription)}${report.guessedTarget ? ` · Goal of ${esc(report.guessedTarget)}` : ''}</span>` : ''}</dd></div>
       <div><dt>Actual mission</dt><dd>${esc(report.actualTitle || 'Unassigned')}${report.actualDescription ? `<span>${esc(report.actualDescription)}${report.actualTarget ? ` · Goal of ${esc(report.actualTarget)}` : ''}</span>` : ''}</dd></div></dl>
     ${report.reason || report.decisionNote ? `<p class="ops-reason">${esc(report.reason || report.decisionNote)}</p>` : ''}
     <footer>${typeof report.match === 'boolean' ? badge(report.match ? 'approved' : 'archived', report.match ? 'Mission match' : 'Different missions') : ''}
