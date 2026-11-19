@@ -482,7 +482,6 @@ function checkStaffPassword(env, role) {
   if (typeof password !== 'string' || password.length < MIN_ROLE_PASSWORD_LENGTH) {
     fail(503, role === 'staff' ? 'An organizer must configure staff access.' : 'An organizer must configure projector access.');
   }
-  if (env.ADMIN_PASSWORD === env.PRESENTATION_PASSWORD) fail(503, 'Staff and projector access must use separate passphrases.');
   return password;
 }
 

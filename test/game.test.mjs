@@ -105,10 +105,10 @@ const getStaff = admin => ok(admin, '/api/staff')
 const requestId = () => crypto.randomUUID()
 const timestamp = value => new Date(value).getTime()
 
-test('staff and projector can sign in with distinct four-character passwords', async t => {
-  const f = fixture(t, { ...config(), adminPassword: 'a142', presentationPassword: 'p299' })
+test('staff and projector can sign in with the same four-character password', async t => {
+  const f = fixture(t, { ...config(), adminPassword: 'a142', presentationPassword: 'a142' })
   await ok(f.admin, '/api/staff/login', { password: 'a142' })
-  await ok(f.screen, '/api/screen/login', { password: 'p299' })
+  await ok(f.screen, '/api/screen/login', { password: 'a142' })
   await ok(f.admin, '/api/staff')
   await ok(f.screen, '/api/screen')
 

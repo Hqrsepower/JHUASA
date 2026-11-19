@@ -152,10 +152,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   if (!demo && (
     (adminPassword?.length ?? 0) < MIN_ROLE_PASSWORD_LENGTH ||
     (presentationPassword?.length ?? 0) < MIN_ROLE_PASSWORD_LENGTH ||
-    adminPassword === presentationPassword ||
     (pinPepper?.length ?? 0) < 24
   )) {
-    throw new Error(`Set separate staff and projector passwords (${MIN_ROLE_PASSWORD_LENGTH}+ characters) and PIN_PEPPER (24+). Run npm run setup to generate them.`);
+    throw new Error(`Set staff and projector passwords (${MIN_ROLE_PASSWORD_LENGTH}+ characters) and PIN_PEPPER (24+). Run npm run setup to generate them.`);
   }
 
   const local = await startServer({
