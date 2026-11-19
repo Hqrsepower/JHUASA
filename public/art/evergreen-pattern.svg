@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 216">
+  <defs>
+    <path id="star" d="M0-10Q1-1 10 0 1 1 0 10-1 1-10 0-1-1 0-10Z"/>
+    <path id="flake" d="M0-11v22m-9.5-16.5 19 11m0-11-19 11m6-15 3.5 3 3.5-3m-7 19 3.5-3 3.5 3m-13-7 4-1.5-.5-4.5m15 6-4-1.5.5-4.5m-15 6 4 1.5-.5 4.5m15-6-4 1.5.5 4.5"/>
+  </defs>
+  <g fill="none" stroke="#8eb49a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(46 52) rotate(-31)">
+      <path d="M-6-13a10 10 0 1 1 20 0v32a4 4 0 1 1-8 0v-32a2 2 0 1 0-4 0 4 4 0 1 1-8 0Z"/>
+      <path d="m-5-15 6 2m-2-8 5 6m3-7 1 7m6-1-7 5m7 1-8 6m8 0-8 6m8 0-8 6m8 0-8 6m8 0-8 6"/>
+    </g>
+    <g transform="translate(151 25) scale(.85)"><use href="#flake"/></g>
+    <g transform="translate(85 171) scale(.94)"><use href="#flake"/></g>
+    <g transform="translate(229 77) rotate(22)">
+      <path d="M0-19v5m-4 0h8v5h-8Z"/>
+      <circle cy="4" r="13"/>
+      <path d="M-12 0q6-4 12 0t12 0M-12 8q6-4 12 0t12 0"/>
+    </g>
+    <g transform="translate(183 152) rotate(17)">
+      <path d="M-13-8h26v23h-26zm-2-5h30v5h-30Zm15 0v28m0-28q-4-13-9-9-5 5 9 9 4-13 9-9 5 5-9 9Z"/>
+    </g>
+    <g transform="translate(15 193) rotate(-14)">
+      <path d="M0-14 7-4H4l7 10H6l7 8h-26l7-8h-5l7-10h-3ZM-2 14v5h4v-5"/>
+    </g>
+  </g>
+  <g fill="#8eb49a"><use href="#star" transform="translate(103 86) scale(.55)"/><use href="#star" transform="translate(126 185) scale(.34)"/><use href="#star" transform="translate(246 154) scale(.48)"/><use href="#star" transform="translate(50 129) scale(.43)"/><circle cx="31" cy="99" r="1.4"/><circle cx="122" cy="120" r="1.5"/><circle cx="167" cy="71" r="1.5"/><circle cx="200" cy="198" r="1.5"/><circle cx="225" cy="31" r="1.3"/><circle cx="80" cy="30" r="1.5"/></g>
+</svg>

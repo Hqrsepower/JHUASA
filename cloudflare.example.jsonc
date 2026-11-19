@@ -1,0 +1,14 @@
+{
+  "name": "santas-secret-mission",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2025-06-01",
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "santas-secret-mission",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

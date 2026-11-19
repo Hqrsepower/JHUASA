@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" role="img" aria-labelledby="title">
+  <title id="title">A dejected Black elf closes a mission file</title>
+  <defs>
+    <clipPath id="frame"><circle cx="150" cy="153" r="121"/></clipPath>
+    <linearGradient id="skin" x2=".88" y2=".8"><stop stop-color="#bc794f"/><stop offset="1" stop-color="#8d5037"/></linearGradient>
+    <path id="star" d="M0-14Q2-2 14 0 2 2 0 14-2 2-14 0-2-2 0-14Z"/>
+  </defs>
+  <circle cx="150" cy="153" r="122" fill="#455d53" stroke="#e4b979" stroke-width="2.4"/>
+  <g clip-path="url(#frame)">
+    <path d="M25 214q73-43 124-39 71-3 130 26v85H24Z" fill="#536b5f"/>
+    <circle cx="150" cy="153" r="112" fill="none" stroke="#e4b979" opacity=".44"/>
+    <circle cx="150" cy="153" r="106" fill="none" stroke="#e4b979" stroke-dasharray="1 4" opacity=".4"/>
+    <g fill="#edc680"><use href="#star" transform="translate(53 109) scale(.65)"/><use href="#star" transform="translate(248 122) scale(.7)"/><use href="#star" transform="translate(222 81) scale(.4)"/><circle cx="60" cy="141" r="2"/><circle cx="242" cy="97" r="1.8"/><circle cx="46" cy="199" r="1.7"/></g>
+    <path d="M59 282q14-71 73-89l44-2q64 16 79 94Z" fill="#254d3e" stroke="#342720" stroke-width="5"/>
+    <path d="M64 269q27-62 66-67l6 74Z" fill="#38634f"/>
+    <path d="M130 182q4 18-9 26l23 54 42-56q-12-7-14-25Z" fill="#9c593d" stroke="#492e24" stroke-width="4.5"/>
+    <path d="M110 201q13 20 38 18l5 42-45-27-14-22Zm72-4q-3 18-30 22l1 42 46-30 3-19Z" fill="#ebcf99" stroke="#302d22" stroke-width="4.5" stroke-linejoin="round"/>
+    <path d="M86 139q-22-9-42-11 9 26 43 31m109-22q21-11 46-14-12 30-47 38" fill="#b36e49" stroke="#482c22" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M58 137q13 2 23 10m129 0 19-12" fill="none" stroke="#784332" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M90 112q13-38 60-38 51 0 60 44 7 51-21 76-18 16-48 15-51-3-59-47-4-27 8-50Z" fill="url(#skin)" stroke="#462c23" stroke-width="4.5"/>
+    <path d="M84 135q-7-18 9-47 14-27 53-30 44-3 65 28 12 18 5 48-11 1-14-15-12-2-13-13-7 5-15-4-7 18-32 12-11 12-27 7-9 20-31 14Z" fill="#292520"/>
+    <path d="M96 119q12 0 15-9m10 1q13 0 19-8m20 2q10-5 12-12m14 4q10 0 13 9" fill="none" stroke="#67503a" stroke-width="2" stroke-linecap="round"/>
+    <path d="M76 106q9-39 46-58 42-21 72 10 12 12 15 26l-53 10Z" fill="#427356" stroke="#2a3326" stroke-width="4.5"/>
+    <path d="M98 90q22-33 48-36m-19 34q28-27 54-25" fill="none" stroke="#749978" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M75 103q40-27 97-31 22 0 42 6 13 5 10 13-4 9-22 6-54-7-111 25-15 9-22 0-8-8 6-19Z" fill="#e7c78a" stroke="#2a3326" stroke-width="4.5"/>
+    <path d="M81 111q61-34 126-26" fill="none" stroke="#f9e1a7" stroke-width="2.3" stroke-linecap="round"/>
+    <path d="M110 139q13-1 24-9m36 0q9 8 21 8" fill="none" stroke="#543122" stroke-width="3" stroke-linecap="round"/>
+    <path d="M115 150q9 6 18 1m42 0q8 6 17 0" fill="none" stroke="#3d2b21" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M152 154q-5 10 0 12 3 1 7-1m-16 20q13-9 24-2" fill="none" stroke="#65382a" stroke-width="2.8" stroke-linecap="round"/>
+    <g transform="rotate(-10 161 264)">
+      <rect x="108" y="235" width="104" height="59" rx="4" fill="#d8b582" stroke="#2d3025" stroke-width="3.8"/>
+      <path d="m109 237 45 31q7 5 13 0l44-31" fill="#ecd5a3" stroke="#886649" stroke-width="2.7"/>
+      <path d="m110 290 33-29m66 29-33-30" fill="none" stroke="#886649" stroke-width="2.5"/>
+      <circle cx="161" cy="269" r="10" fill="#9d443b"/>
+      <path d="m157 265 8 8m0-8-8 8" stroke="#f4c98a" stroke-width="1.8" stroke-linecap="round"/>
+    </g>
+    <path d="M105 265q8-11 17-6 5 3 1 8 10 2 7 9-4 8-24 4Zm100-7q-8-12-16-8-7 3 0 7-13 4-10 10 5 9 24 4Z" fill="#b36e49" stroke="#563629" stroke-width="3" stroke-linejoin="round"/>
+    </g>
+  <circle cx="150" cy="153" r="121" fill="none" stroke="#e4b979" stroke-width="2"/>
+  <g fill="#e6bb78"><use href="#star" transform="translate(261 47) scale(.9)"/><use href="#star" transform="translate(38 59) scale(.56)"/><circle cx="243" cy="30" r="2.1"/><circle cx="30" cy="87" r="2"/></g>
+</svg>

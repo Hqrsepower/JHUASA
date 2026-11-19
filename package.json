@@ -1,0 +1,17 @@
+{
+  "name": "santas-secret-mission",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "start": "node --env-file-if-exists=.env dev.mjs",
+    "demo": "node dev.mjs --demo",
+    "check": "node scripts/check.mjs",
+    "test": "node --test test/*.test.mjs",
+    "build": "node scripts/build.mjs"
+  }
+}
