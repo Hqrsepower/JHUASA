@@ -56,6 +56,8 @@ Use a Cloudflare account with Workers and D1 enabled. The Worker serves all thre
 
 You can keep the source in a GitHub repository and connect that repository to Cloudflare Workers Builds for automatic updates. The final participant link comes from the Worker. GitHub Pages serves static files and cannot run this game’s API.
 
+Set the credentials under **Runtime variables and secrets** for **Production** and mark them as **Secret**. Wrangler keeps the dashboard variables and checks for all three required secret names before it publishes a new version.
+
 1. Run the following, then copy the D1 database ID from Wrangler’s output.
 
    ```sh

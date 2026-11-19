@@ -10,5 +10,13 @@
       "database_id": "276f50a7-5fa5-4486-94d2-866178e65e5f",
       "migrations_dir": "migrations"
     }
-  ]
+  ],
+  "keep_vars": true,
+  "secrets": {
+    "required": [
+      "ADMIN_PASSWORD",
+      "PRESENTATION_PASSWORD",
+      "PIN_PEPPER"
+    ]
+  }
 }

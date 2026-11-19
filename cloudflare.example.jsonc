@@ -10,5 +10,13 @@
       "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
       "migrations_dir": "migrations"
     }
-  ]
+  ],
+  "keep_vars": true,
+  "secrets": {
+    "required": [
+      "ADMIN_PASSWORD",
+      "PRESENTATION_PASSWORD",
+      "PIN_PEPPER"
+    ]
+  }
 }
