@@ -257,13 +257,14 @@ body.player-page {
 .player-overlay { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; padding: 1rem; background: #10251ddd; backdrop-filter: blur(4px); overflow: auto; }
 .player-dialog { position: relative; width: min(100%, 29rem); padding: clamp(1rem, 4vw, 1.7rem); background: var(--player-paper); border-radius: 1.06rem; border: 1px solid #d1bea0; color: var(--player-ink); box-shadow: 0 1.5rem 4rem #08181295; animation: player-dialog-in .24s both; max-height: calc(100dvh - 2rem); overflow: auto; }
 .player-dialog:focus { outline: none; }
-.player-dialog h2 { font: 700 clamp(1.9rem, 5vw, 2.55rem)/1.05 var(--player-display); margin: .52rem 1.6rem .45rem 0; letter-spacing: -.045em; overflow-wrap: anywhere; }
-.player-dialog p { color: var(--player-muted); margin: .4rem 0 .65rem; }
+.player-dialog:not(.player-reveal-dialog) h2 { font: 700 clamp(1.9rem, 5vw, 2.55rem)/1.05 var(--player-display); margin: .52rem 1.6rem .45rem 0; letter-spacing: -.045em; overflow-wrap: anywhere; }
+.player-dialog:not(.player-reveal-dialog) p { color: var(--player-muted); margin: .4rem 0 .65rem; }
 .player-dialog .player-form-error, .player-dialog .player-pin-help { color: #882d26; }
 .player-dialog-close { display: grid; place-items: center; position: absolute; top: .62rem; right: .63rem; color: var(--player-ink); background: #f4ebd9; border: 1px solid var(--player-border); border-radius: .55rem; width: 2.75rem; height: 2.75rem; box-shadow: 0 .18rem .4rem #2115080b; z-index: 2; }
 .player-dialog-close:hover { background: #eaddc2; }
 .player-dialog.player-reveal-dialog {
-  width: min(100%, 27rem);
+  width: min(100%, 47rem);
+  max-width: 100%;
   padding: 0;
   max-height: none;
   overflow: visible;
@@ -275,14 +276,16 @@ body.player-page {
 }
 .player-reveal-dialog .player-dialog-close {
   top: .62rem;
-  right: .62rem;
+  right: max(.62rem, calc((100% - 27rem) / 2 + .62rem));
   color: #fff1d5;
   background: #204b3d;
   border-color: #e9bd7266;
 }
+.player-reveal-dialog:has([data-revealed]) .player-dialog-close { right: calc(4% + .62rem); }
 .player-reveal-dialog .player-dialog-close:hover { background: #315d4c; }
 .player-reveal-card {
   display: grid;
+  place-items: center;
   transform-style: preserve-3d;
   transition: transform .55s cubic-bezier(.58,.07,.25,1);
 }
@@ -322,7 +325,7 @@ body.player-page {
   border-radius: .76rem;
   pointer-events: none;
 }
-.player-reveal-front { gap: .9rem; width: 100%; }
+.player-reveal-front { gap: .9rem; width: min(100%, 27rem); }
 .player-reveal-front strong { font: 700 clamp(1.85rem, 6vw, 2.55rem)/1 var(--player-display); }
 .player-reveal-seal {
   display: grid;
@@ -339,23 +342,24 @@ body.player-page {
 }
 .player-reveal-front:hover .player-reveal-seal { transform: rotate(-7deg) scale(1.07); }
 .player-reveal-prompt { color: #edc78d; font-size: .9rem; font-weight: 780; }
-.player-reveal-back { transform: rotateY(180deg); text-align: center; }
-.player-reveal-back .player-step-label { gap: .36rem; color: #edca8e; }
-.player-reveal-back h2, .player-reveal-dialog .player-reveal-back h2 {
-  margin: .7rem 0 .3rem;
-  color: #fff4dc;
-  font: 700 clamp(1.9rem, 6vw, 2.6rem)/1.05 var(--player-display);
-  overflow-wrap: anywhere;
+.player-reveal-back {
+  grid-area: 1 / 1;
+  width: 100%;
+  transform: rotateY(180deg) scale(.92);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
-.player-reveal-back p, .player-reveal-dialog .player-reveal-back p { color: #f5ebd6; overflow-wrap: anywhere; margin: .4rem 0; }
-.player-reveal-back .player-reveal-target { color: #eed198; font-weight: 720; font-size: .9rem; }
-.player-reveal-back .player-btn { color: #292116; background: #eac481; margin-top: .55rem; padding-inline: 1.65rem; }
-.player-reveal-back .player-btn:hover { background: #f8dba6; }
+.player-reveal-desaturated .player-reveal-back, .player-mission-flight.player-reveal-desaturated { filter: saturate(.44); }
+.player-reveal-actions { display: flex; justify-content: center; margin-top: .62rem; }
+.player-reveal-actions[inert] { visibility: hidden; }
+.player-reveal-actions .player-btn { color: #292116; background: #eac481; padding-inline: 1.65rem; }
+.player-reveal-actions .player-btn:hover { background: #f8dba6; }
 .player-reveal-dialog :focus-visible { outline-color: #f1cf91; }
 [data-mission-covered] [data-mission-destination],
 [data-mission-flight] [data-mission-destination] { visibility: hidden; }
-.player-mission-flight { position: fixed; z-index: 12; pointer-events: none; transform-origin: top left; perspective: 1100px; }
-.player-mission-flight .player-reveal-card { min-height: 100%; }
+.player-mission-card.player-mission-flight { position: fixed; z-index: 12; pointer-events: none; transform-origin: top left; }
+.player-reveal-back .player-progress-bar > span, .player-mission-flight .player-progress-bar > span,
+.player-reveal-back .player-complete, .player-mission-flight .player-complete { animation: none; }
 .player-dialog-badge { display: grid; width: 3.1rem; height: 3.1rem; place-items: center; background: #e9dcc4; border-radius: .64rem; color: #764632; font-size: 1.3rem; margin-bottom: .95rem; }
 .player-dialog-glyph { color: #f9e2b2; background: #315449; position: absolute; display: grid; place-items: center; left: .75rem; bottom: .75rem; height: 2.4rem; width: 2.4rem; border-radius: .48rem; border: 1px solid #ecce8c55; }
 .player-action-row { margin-top: .85rem; display: flex; flex-wrap: wrap; justify-content: space-between; gap: .55rem; }

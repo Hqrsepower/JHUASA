@@ -221,7 +221,6 @@ function rosterMarkup() {
 }
 
 function missionRevealMarkup() {
-  const { title, description, target } = snapshot.me.mission;
   return `<span class="sr-only" id="player-dialog-title">Your secret mission</span>
     <div class="player-reveal-card" data-reveal-card>
       <button class="player-reveal-face player-reveal-front" type="button" data-act="reveal-mission">
@@ -229,14 +228,30 @@ function missionRevealMarkup() {
         <strong>Your secret mission</strong>
         <span class="player-reveal-prompt">Tap to reveal</span>
       </button>
-      <div class="player-reveal-face player-reveal-back" data-reveal-back aria-hidden="true" inert>
-        <span class="player-step-label">${lineIcon('lock')} Your secret mission</span>
-        <h2>${esc(title)}</h2>
-        <p>${esc(description)}</p>
-        <p class="player-reveal-target">${target} ${target === 1 ? 'completion' : 'completions'} required</p>
-        <button class="player-btn" data-act="close-overlay" type="button" data-reveal-okay>Okay</button>
-      </div>
+      <div class="player-reveal-back" data-reveal-back aria-hidden="true" inert></div>
+    </div>
+    <div class="player-reveal-actions" inert>
+      <button class="player-btn" data-act="close-overlay" type="button" data-reveal-okay>Okay</button>
     </div>`;
+}
+
+function copyMissionCard(target) {
+  const copy = target.cloneNode(true);
+  copy.removeAttribute('data-mission-destination');
+  copy.removeAttribute('tabindex');
+  copy.querySelector('.player-progress-actions')?.setAttribute('inert', '');
+  return copy;
+}
+
+function syncMissionReveal() {
+  const dialog = app.querySelector('.player-reveal-dialog');
+  const target = app.querySelector('[data-mission-destination]');
+  if (!dialog || !target) return;
+  const back = dialog.querySelector('[data-reveal-back]');
+  const copy = copyMissionCard(target);
+  if (back.firstElementChild?.outerHTML !== copy.outerHTML) back.replaceChildren(copy);
+  dialog.style.width = `${target.getBoundingClientRect().width}px`;
+  dialog.classList.toggle('player-reveal-desaturated', Boolean(target.closest('.player-desaturated')));
 }
 
 function renderOverlay(focus = true) {
@@ -266,6 +281,7 @@ function renderOverlay(focus = true) {
   if (existing) existing.outerHTML = markup;
   else app.insertAdjacentHTML('beforeend', markup);
   document.body.classList.add('player-dialog-open');
+  if (isReveal) syncMissionReveal();
   if (focus) {
     const dialog = app.querySelector('[data-player-dialog]');
     (dialog.querySelector('[data-pin], #player-roster-query, [data-act="reveal-mission"]') || dialog).focus();
@@ -306,45 +322,48 @@ function presentMission() {
 
 function revealMission(button) {
   const card = button.closest('[data-reveal-card]');
+  const dialog = button.closest('[data-player-dialog]');
   const back = card.querySelector('[data-reveal-back]');
   card.dataset.revealed = 'true';
   button.inert = true;
   button.setAttribute('aria-hidden', 'true');
   back.inert = false;
   back.removeAttribute('aria-hidden');
-  back.querySelector('[data-reveal-okay]').focus();
+  const okay = dialog.querySelector('[data-reveal-okay]');
+  okay.parentElement.inert = false;
+  okay.focus();
 }
 
 function landMissionCard() {
   const card = app.querySelector('[data-reveal-card]');
   const target = app.querySelector('[data-mission-destination]');
-  const start = card?.getBoundingClientRect();
-  const end = target?.getBoundingClientRect();
-  let flight;
-  if (start?.width && end?.width && typeof card.animate === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    flight = document.createElement('div');
-    flight.className = 'player-mission-flight';
-    flight.inert = true;
-    flight.setAttribute('aria-hidden', 'true');
-    Object.assign(flight.style, { left: `${start.left}px`, top: `${start.top}px`, width: `${start.width}px`, height: `${start.height}px` });
-    flight.append(card.cloneNode(true));
-    app.append(flight);
-    app.setAttribute('data-mission-flight', '');
-  }
+  const face = card?.querySelector(card.hasAttribute('data-revealed') ? '[data-reveal-back]' : '.player-reveal-front');
+  const start = face?.getBoundingClientRect();
+  const animate = start?.width > 0 && start.height > 0 && typeof target?.animate === 'function' &&
+    !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (animate) app.setAttribute('data-mission-flight', '');
   overlay = null;
   renderOverlay();
   restoreFocus = null;
+  const end = target?.getBoundingClientRect();
+  let flight;
   const complete = () => {
     flight?.remove();
     app.removeAttribute('data-mission-flight');
     app.querySelector('[data-mission-destination]')?.focus({ preventScroll: true });
     presentMission();
   };
-  if (!flight) return complete();
+  if (!animate || !end?.width || !end.height) return complete();
+  flight = copyMissionCard(target);
+  flight.classList.add('player-mission-flight');
+  flight.classList.toggle('player-reveal-desaturated', Boolean(target.closest('.player-desaturated')));
+  flight.inert = true;
+  flight.setAttribute('aria-hidden', 'true');
+  Object.assign(flight.style, { left: `${end.left}px`, top: `${end.top}px`, width: `${end.width}px`, height: `${end.height}px` });
+  app.append(flight);
   flight.animate([
-    { transform: 'none', opacity: 1 },
-    { opacity: 1, offset: .66 },
-    { transform: `translate(${end.left - start.left}px, ${end.top - start.top}px) scale(${end.width / start.width}, ${end.height / start.height})`, opacity: 0 },
+    { transform: `translate(${start.left - end.left}px, ${start.top - end.top}px) scale(${start.width / end.width}, ${start.height / end.height})` },
+    { transform: 'translate(0, 0) scale(1)' },
   ], { duration: 640, easing: 'cubic-bezier(.22,.72,.23,1)', fill: 'forwards' }).finished.then(complete, complete);
 }
 
@@ -363,6 +382,7 @@ function render({ preserveInput = false } = {}) {
   const banner = app.querySelector('[data-player-offline]');
   if (banner) banner.hidden = !offline;
   if (name && document.getElementById('player-name')) document.getElementById('player-name').value = name;
+  if (overlay?.type === 'mission-reveal') syncMissionReveal();
   if (!overlay && priorId) {
     const next = document.getElementById(priorId);
     next?.focus();
