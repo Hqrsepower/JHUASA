@@ -215,7 +215,7 @@ body:has(.projection-display) {
   box-shadow: 0 18px 60px #04191185;
 }
 .projection-rules::backdrop { background: #041911bb; }
-.projection-rules-close { position: absolute; top: .65rem; right: .65rem; }
+.projection-rules-close { position: absolute; z-index: 1; top: .65rem; right: .65rem; }
 .projection-rules-slide {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);

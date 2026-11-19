@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from './server/entry.mjs';
+import { MIN_ROLE_PASSWORD_LENGTH } from './server/game.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(root, 'public');
@@ -149,12 +150,12 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const pinPepper = demo ? 'local-demo-only-pepper-2026' : process.env.PIN_PEPPER;
 
   if (!demo && (
-    (adminPassword?.length ?? 0) < 16 ||
-    (presentationPassword?.length ?? 0) < 16 ||
+    (adminPassword?.length ?? 0) < MIN_ROLE_PASSWORD_LENGTH ||
+    (presentationPassword?.length ?? 0) < MIN_ROLE_PASSWORD_LENGTH ||
     adminPassword === presentationPassword ||
     (pinPepper?.length ?? 0) < 24
   )) {
-    throw new Error('Set separate staff and projector passwords (16+ characters) and PIN_PEPPER (24+). Run npm run setup to generate them.');
+    throw new Error(`Set separate staff and projector passwords (${MIN_ROLE_PASSWORD_LENGTH}+ characters) and PIN_PEPPER (24+). Run npm run setup to generate them.`);
   }
 
   const local = await startServer({

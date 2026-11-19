@@ -1,5 +1,5 @@
 import { api, esc, icon, watch } from './common.js';
-import { ruleScenes } from './tutorial.js';
+import { ruleScenes, showTutorialSlide, tutorialTrack } from './tutorial.js';
 
 const app = document.querySelector('#app');
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -183,21 +183,20 @@ function openRules() {
   dialog.className = 'projection-rules';
   dialog.setAttribute('aria-label', 'How to play');
   dialog.innerHTML = `<button class="projection-tool projection-rules-close" type="button" aria-label="Close tutorial" autofocus>${icon('close')}</button>
-    <div class="projection-rules-slide" aria-live="polite"></div>
+    ${tutorialTrack(([title, description, art], index) => `<div class="projection-rules-slide">
+      <img src="${art}" alt="" width="384" height="384" draggable="false">
+      <div><p class="eyebrow">${index + 1} of ${ruleScenes.length}</p>
+      <h2>${esc(title)}</h2><p>${esc(description)}</p></div></div>`)}
     <div class="projection-rules-nav">
-      <button class="button secondary" type="button" data-rules-back>Back</button>
+      <button class="button secondary" type="button" data-rules-back disabled>Back</button>
       <button class="button primary" type="button" data-rules-next>Next</button>
     </div>`;
 
-  const slide = dialog.querySelector('.projection-rules-slide');
   const back = dialog.querySelector('[data-rules-back]');
   const next = dialog.querySelector('[data-rules-next]');
   let index = 0;
   function showStep() {
-    const [title, description, art] = ruleScenes[index];
-    slide.innerHTML = `<img src="${art}" alt="" width="384" height="384">
-      <div><p class="eyebrow">${index + 1} of ${ruleScenes.length}</p>
-      <h2>${esc(title)}</h2><p>${esc(description)}</p></div>`;
+    showTutorialSlide(dialog, index);
     back.disabled = index === 0;
     next.textContent = index === ruleScenes.length - 1 ? 'Done' : 'Next';
   }
@@ -209,7 +208,6 @@ function openRules() {
     if (index === ruleScenes.length - 1) dialog.close();
     else { index += 1; showStep(); }
   });
-  showStep();
   app.append(dialog);
   dialog.showModal();
 }

@@ -10,6 +10,8 @@ A Christmas social deduction game from the Johns Hopkins African Students Associ
 
 Share the player URL as a link or QR code. Organizers can open **Staff access** or **Projector** from the welcome page footer and enter their respective passphrases. Typing `jhu asa 2026` or `jhu asa presentation screen` in the name field opens the same sign-in screens. The projector’s **How to play** button reopens the six-slide tutorial.
 
+The staff and projector passwords must be different and at least four characters each. Players use their own four-digit PINs.
+
 ## Try a practice round
 
 Install Node.js 22.13 or later, unzip the project, and run this command from its folder.

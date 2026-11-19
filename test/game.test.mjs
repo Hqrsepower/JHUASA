@@ -105,6 +105,18 @@ const getStaff = admin => ok(admin, '/api/staff')
 const requestId = () => crypto.randomUUID()
 const timestamp = value => new Date(value).getTime()
 
+test('staff and projector can sign in with distinct four-character passwords', async t => {
+  const f = fixture(t, { ...config(), adminPassword: 'a142', presentationPassword: 'p299' })
+  await ok(f.admin, '/api/staff/login', { password: 'a142' })
+  await ok(f.screen, '/api/screen/login', { password: 'p299' })
+  await ok(f.admin, '/api/staff')
+  await ok(f.screen, '/api/screen')
+
+  const short = fixture(t, { ...config(), adminPassword: 'abc', presentationPassword: 'xyz' })
+  await fails(short.admin, 503, '/api/staff/login', { password: 'abc' })
+  await fails(short.screen, 503, '/api/screen/login', { password: 'xyz' })
+})
+
 function stablePlayer({ lastActive: _lastActive, ...state }) {
   return state
 }

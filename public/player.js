@@ -1,6 +1,6 @@
 import { api, esc, watch, uid, time, toast } from '/common.js';
 import { playerEntry } from '/player-entry.js';
-import { ruleScenes } from '/tutorial.js';
+import { ruleScenes, showTutorialSlide, tutorialTrack } from '/tutorial.js';
 
 const app = document.querySelector('#app');
 const routes = [
@@ -198,12 +198,15 @@ function pinMarkup() {
 }
 
 function rulesOverlay() {
-  const [label, copy, art, symbol] = ruleScenes[overlay.scene];
-  return `<div class="player-dialog-hero"><span class="player-dialog-glyph">${lineIcon(symbol)}</span><img class="player-character" src="${art}" alt="" width="384" height="384" draggable="false"></div>
-    <div class="player-tour-copy"><div class="player-step-label">${overlay.scene + 1} of ${ruleScenes.length}</div>${overlay.onboarding && overlay.scene === 0 && snapshot?.me ? `<p class="player-tour-greeting">Welcome aboard, Agent ${esc(snapshot.me.name)}.</p>` : ''}<h2 id="player-dialog-title">${label}</h2><p>${copy}</p></div>
-    <div class="player-tour-dots" aria-label="Tutorial steps">${ruleScenes.map((scene, i) => `<button type="button" aria-label="${esc(scene[0])}" ${i === overlay.scene ? 'aria-current="step"' : ''} data-act="tour-step" data-scene="${i}"></button>`).join('')}</div>
-    <div class="player-action-row player-tour-actions"><button type="button" class="player-btn player-btn-outline" data-act="${overlay.scene ? 'tour-back' : 'close-overlay'}">${overlay.scene ? 'Back' : overlay.onboarding ? 'Skip' : 'Close'}</button>
-    <button type="button" class="player-btn player-btn-red" data-act="${overlay.scene === ruleScenes.length - 1 ? 'close-overlay' : 'tour-next'}">${overlay.scene === ruleScenes.length - 1 ? 'Let’s play' : 'Next'}</button></div>`;
+  const greeting = overlay.onboarding && snapshot?.me
+    ? `<p class="player-tour-greeting">Welcome aboard, Agent ${esc(snapshot.me.name)}.</p>` : '';
+  return `<span class="sr-only" id="player-dialog-title">How to play</span>
+    ${tutorialTrack(([label, copy, art, symbol], index) => `
+      <div class="player-dialog-hero"><span class="player-dialog-glyph">${lineIcon(symbol)}</span><img class="player-character" src="${art}" alt="" width="384" height="384" draggable="false"></div>
+      <div class="player-tour-copy"><div class="player-step-label">${index + 1} of ${ruleScenes.length}</div>${index === 0 ? greeting : ''}<h2>${label}</h2><p>${copy}</p></div>`)}
+    <div class="player-tour-dots" role="group" aria-label="Tutorial steps">${ruleScenes.map((scene, i) => `<button type="button" aria-label="${esc(scene[0])}" ${i === 0 ? 'aria-current="step"' : ''} data-act="tour-step" data-scene="${i}"></button>`).join('')}</div>
+    <div class="player-action-row player-tour-actions"><button type="button" class="player-btn player-btn-outline" data-tour-back data-act="close-overlay">${overlay.onboarding ? 'Skip' : 'Close'}</button>
+    <button type="button" class="player-btn player-btn-red" data-tour-next data-act="tour-next">Next</button></div>`;
 }
 
 function rosterMarkup() {
@@ -500,9 +503,20 @@ async function logout(button) {
 }
 
 function gotoScene(scene) {
-  if (!overlay || scene < 0 || scene >= ruleScenes.length) return;
+  if (overlay?.type !== 'rules' || scene < 0 || scene >= ruleScenes.length || scene === overlay.scene) return;
+  const dialog = app.querySelector('[data-player-dialog]');
+  const dots = dialog.querySelectorAll('[data-act="tour-step"]');
+  dots[overlay.scene].removeAttribute('aria-current');
+  dots[scene].setAttribute('aria-current', 'step');
   overlay.scene = scene;
-  renderOverlay();
+  showTutorialSlide(dialog, scene);
+  const back = dialog.querySelector('[data-tour-back]');
+  back.dataset.act = scene ? 'tour-back' : 'close-overlay';
+  back.textContent = scene ? 'Back' : overlay.onboarding ? 'Skip' : 'Close';
+  const next = dialog.querySelector('[data-tour-next]');
+  const last = scene === ruleScenes.length - 1;
+  next.dataset.act = last ? 'close-overlay' : 'tour-next';
+  next.textContent = last ? 'Let’s play' : 'Next';
 }
 
 app.addEventListener('submit', event => {
